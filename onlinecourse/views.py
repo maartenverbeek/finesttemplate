@@ -100,7 +100,7 @@ def enroll(request, course_id):
         course.total_enrollment += 1
         course.save()
 
-    return HttpResponseRedirect(reverse(viewname='onlinecourse:course_details', args=(course.id)))
+    return HttpResponseRedirect(reverse(viewname='onlinecourse:course_details', args=(course.id,)))
 
 
 # <HINT> Create a submit view to create an exam submission record for a course enrollment,
@@ -115,10 +115,12 @@ def submit(request, course_id):
     user = request.user
     enrollment = Enrollment.objects.get(user=user, course=course)
     submission = Submission.objects.create(enrollment=enrollment)
-    submission.choices = extract_answers(request)
+    submitted_answers = extract_answers(request)
+    for answer in submitted_answers:
+        submission.choices.add(answer) 
     submission.save()
 
-    return HttpResponseRedirect(reverse(viewname='onlinecourse:show_exam_results', args=(course.id, submission.id)))
+    return HttpResponseRedirect(reverse(viewname='onlinecourse:result', args=(course.id, submission.id)))
 
 
 # <HINT> A example method to collect the selected choices from the exam form from the request object
@@ -142,10 +144,13 @@ def show_exam_result(request, course_id, submission_id):
     context = {}
     course = get_object_or_404(Course, pk=course_id)
     submission = get_object_or_404(Submission, pk=submission_id)
-    selected_ids = submission.choices
+    selected_choices = submission.choices.all()
+    selected_ids = []
+    for choice in selected_choices:
+        selected_ids.append(choice.id)
     grade = 0
     max_grade = 0
-    for question in course.question_set.all:
+    for question in course.question_set.all():
         if question.is_get_score(selected_ids):
             grade = grade + question.grade
         max_grade = max_grade + question.grade
@@ -153,6 +158,6 @@ def show_exam_result(request, course_id, submission_id):
     context['course'] = course
     context['grade'] = grade
     context['max_grade'] = max_grade
-    context['selected_ids'] = selected_ids
+    context['selected_choices'] = selected_choices
 
     return render(request, 'onlinecourse/exam_result_bootstrap.html', context)
